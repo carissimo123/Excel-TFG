@@ -1,0 +1,81 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+install.packages(c("tidyverse", "quantmod", "lubridate", "zoo", "scales"))
+
+library(tidyverse)
+library(quantmod)
+library(lubridate)
+library(zoo)
+library(scales)
+  
+```
+
+```{r}
+start_date <- as.Date("2015-01-01")
+end_date   <- as.Date("2025-12-31")
+
+getSymbols(c("ECBDFR", "ECBMRRFR"), src = "FRED", from = start_date, to = end_date)
+```
+
+```{r}
+ecb_rates <- merge(ECBDFR, ECBMRRFR) %>%
+  fortify.zoo() %>%
+  as_tibble() %>%
+  rename(
+    date = Index,
+    deposit_rate = ECBDFR,
+    mro_rate = ECBMRRFR
+  ) %>%
+  mutate(
+    date = as.Date(date),
+    month = floor_date(date, "month")
+  ) %>%
+  group_by(month) %>%
+  summarise(
+    deposit_rate = last(na.omit(deposit_rate)),
+    mro_rate = last(na.omit(mro_rate)),
+    .groups = "drop"
+  ) %>%
+  rename(date = month) %>%
+  filter(date >= start_date, date <= end_date)
+```
+
+```{r}
+ecb_rates_long <- ecb_rates %>%
+  pivot_longer(
+    cols = c(deposit_rate, mro_rate),
+    names_to = "variable",
+    values_to = "rate"
+  ) %>%
+  mutate(
+    variable = recode(
+      variable,
+      deposit_rate = "Tipo de depósito",
+      mro_rate = "Tipo principal de refinanciación"
+    )
+  )
+```
+
+```{r}
+ggplot(ecb_rates_long, aes(x = date, y = rate, color = variable)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = as.Date("2022-07-01"), linetype = "dashed") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    title = "Evolución de los tipos oficiales del BCE",
+    subtitle = "Tipo de depósito y tipo principal de refinanciación, 2015-2025",
+    x = "Fecha",
+    y = "Tipo de interés (%)",
+    color = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom"
+  )
+```
+

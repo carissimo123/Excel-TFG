@@ -1,0 +1,68 @@
+---
+title: "Untitled"
+author: "Adriana Carissimo Gomila"
+date: "2026-05-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r cars}
+library(tidyverse)
+library(quantmod)
+library(lubridate)
+library(zoo)
+library(scales)
+
+start_date <- as.Date("2015-01-01")
+end_date   <- as.Date("2025-12-31")
+
+getSymbols("ECBASSETSW", src = "FRED", from = start_date, to = end_date)
+```
+
+```{r}
+ecb_balance <- ECBASSETSW %>%
+  fortify.zoo() %>%
+  as_tibble() %>%
+  rename(
+    date = Index,
+    ecb_assets = ECBASSETSW
+  ) %>%
+  mutate(
+    date = as.Date(date),
+    month = floor_date(date, "month")
+  ) %>%
+  group_by(month) %>%
+  summarise(
+    ecb_assets = mean(ecb_assets, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  rename(date = month) %>%
+  filter(date >= start_date, date <= end_date) %>%
+  mutate(
+    ecb_assets_bn = ecb_assets / 1000
+  )
+```
+
+```{r}
+ggplot(ecb_balance, aes(x = date, y = ecb_assets_bn)) +
+  geom_line(linewidth = 1, color = "#0072B2") +
+  geom_vline(xintercept = as.Date("2022-07-01"), linetype = "dashed") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Evolución del balance total del BCE",
+    subtitle = "Del Quantitative Easing al Quantitative Tightening, 2015-2025",
+    x = "Fecha",
+    y = "Balance BCE (miles de millones de euros)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
